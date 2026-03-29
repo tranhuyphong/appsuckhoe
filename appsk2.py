@@ -6,92 +6,89 @@ from sklearn.ensemble import RandomForestRegressor
 from fpdf import FPDF
 import os
 
-# ================= 1. CẤU HÌNH & FONT =================
-st.set_page_config(page_title="AI Health Pro 2026", layout="wide")
-
+# ================= 1. HÀM TẠO PDF CHỐNG LỖI =================
 def create_pdf(name, score, status, bmi, tips):
-    pdf = FPDF()
+    # Sử dụng fpdf2 để xử lý Unicode tốt hơn
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.add_page()
     
-    # Kiểm tra font để hỗ trợ Tiếng Việt
+    # Đường dẫn font
     font_path = "Roboto-Regular.ttf"
     if os.path.exists(font_path):
         pdf.add_font("Roboto", "", font_path)
         pdf.set_font("Roboto", size=12)
-        f_name = "Roboto"
+        f_family = "Roboto"
     else:
-        pdf.set_font("Arial", size=12)
-        f_name = "Arial"
-        st.warning("⚠️ Không tìm thấy file Roboto-Regular.ttf. PDF sẽ dùng font mặc định (không dấu).")
+        pdf.set_font("Helvetica", size=12)
+        f_family = "Helvetica"
+        st.warning("⚠️ Đang dùng font dự phòng (không dấu).")
 
-    pdf.set_font(f_name, size=16)
-    pdf.cell(200, 10, txt="BÁO CÁO SỨC KHỎE AI", ln=True, align='C')
-    
-    pdf.set_font(f_name, size=12)
+    # Tiêu đề
+    pdf.set_font(f_family, size=16)
+    pdf.cell(0, 10, txt="BÁO CÁO SỨC KHỎE AI", ln=True, align='C')
     pdf.ln(10)
-    pdf.cell(200, 10, txt=f"Họ tên: {name}", ln=True)
-    pdf.cell(200, 10, txt=f"Điểm số: {score:.1f}/100", ln=True)
-    pdf.cell(200, 10, txt=f"Trạng thái: {status}", ln=True)
-    pdf.cell(200, 10, txt=f"BMI: {bmi}", ln=True)
     
-    pdf.ln(10)
-    pdf.cell(200, 10, txt="Lời khuyên từ AI:", ln=True)
+    # Nội dung chính
+    pdf.set_font(f_family, size=12)
+    pdf.cell(0, 10, txt=f"Họ tên: {name}", ln=True)
+    pdf.cell(0, 10, txt=f"Điểm số: {score:.1f}/100", ln=True)
+    pdf.cell(0, 10, txt=f"Trạng thái: {status}", ln=True)
+    pdf.cell(0, 10, txt=f"BMI: {bmi}", ln=True)
+    
+    pdf.ln(5)
+    pdf.cell(0, 10, txt="Lời khuyên từ chuyên gia AI:", ln=True)
+    
+    # multi_cell với chiều rộng tự động (w=0) để tránh lỗi không gian
+    pdf.set_font(f_family, size=10)
     for t in tips:
-        pdf.multi_cell(0, 10, txt=f"- {t}")
+        pdf.multi_cell(0, 8, txt=f"- {t}", border=0)
         
-    # fpdf2 không cần .encode('latin-1'), gọi .output() là đủ
     return pdf.output()
 
-# ================= 2. MODEL AI =================
+# ================= 2. LOGIC ỨNG DỤNG =================
 @st.cache_resource
-def train_model():
+def load_ai():
     np.random.seed(42)
-    data = pd.DataFrame({
-        "Sleep": np.random.uniform(4, 10, 500),
-        "Exercise": np.random.uniform(0, 3, 500),
-        "Water": np.random.uniform(1, 4, 500),
-        "Stress": np.random.uniform(1, 10, 500),
-        "BMI": np.random.uniform(17, 30, 500)
-    })
-    data["Score"] = (data["Sleep"]*5 + data["Exercise"]*15 + data["Water"]*4 - data["Stress"]*3 - abs(data["BMI"]-22)*3 + 40)
-    model = RandomForestRegressor(n_estimators=50)
-    model.fit(data[["Sleep", "Exercise", "Water", "Stress", "BMI"]], data["Score"].clip(0,100))
+    X = np.random.rand(100, 5) * 10
+    y = X.sum(axis=1)
+    model = RandomForestRegressor(n_estimators=10).fit(X, y)
     return model
 
-model = train_model()
+model = load_ai()
 
-# ================= 3. GIAO DIỆN =================
+# Giao diện nhập liệu
+st.title("💪 AI Health Checker")
 with st.sidebar:
-    st.header("⚙️ Nhập thông số")
-    name = st.text_input("Họ tên", "Người dùng")
-    weight = st.number_input("Cân nặng (kg)", 40, 150, 65)
-    height = st.number_input("Chiều cao (cm)", 100, 220, 170)
-    bmi = round(weight / ((height/100)**2), 1)
-    
-    sleep = st.slider("Giờ ngủ", 0.0, 12.0, 7.0)
-    exer = st.slider("Vận động", 0.0, 5.0, 1.0)
-    water = st.slider("Nước (L)", 0.0, 5.0, 2.0)
-    stress = st.slider("Căng thẳng", 1, 10, 5)
-    
-    run_btn = st.button("🚀 PHÂN TÍCH", type="primary", use_container_width=True)
+    name = st.text_input("Tên", "Khách hàng")
+    w = st.number_input("Cân nặng", 40, 120, 60)
+    h = st.number_input("Chiều cao (cm)", 100, 200, 165)
+    bmi = round(w / ((h/100)**2), 1)
+    slp = st.slider("Ngủ", 0, 12, 7)
+    ex = st.slider("Vận động", 0, 5, 1)
+    wat = st.slider("Nước", 0, 5, 2)
+    strss = st.slider("Stress", 1, 10, 5)
 
-if run_btn or 'analyzed' in st.session_state:
-    st.session_state.analyzed = True
+if st.button("🚀 Phân tích & Xuất PDF"):
+    score = (slp*5 + ex*10 + wat*5 - strss*2 + 40)
+    score = min(max(score, 0), 100)
+    status = "Tốt" if score > 70 else "Cần cố gắng"
     
-    score = model.predict([[sleep, exer, water, stress, bmi]])[0]
-    status = "Khỏe mạnh" if score > 75 else "Cần cải thiện"
+    st.success(f"Điểm của bạn: {score:.1f}")
     
-    st.title(f"Kết quả của {name}")
-    st.metric("Điểm Sức Khỏe AI", f"{score:.1f}")
+    tips = [
+        "Hãy duy trì thói quen uống nước đều đặn.",
+        "Ngủ đủ giấc là chìa khóa của sự phục hồi.",
+        "Cân nhắc tập thể dục nhẹ nhàng 30 phút mỗi ngày."
+    ]
     
-    tips = ["Duy trì uống đủ nước mỗi ngày.", "Nên vận động nhẹ nhàng sau giờ làm việc."]
-    
-    # Nút tải PDF
-    pdf_bytes = create_pdf(name, score, status, bmi, tips)
-    st.download_button(
-        label="📥 Tải Báo Cáo PDF (Tiếng Việt)",
-        data=bytes(pdf_bytes),
-        file_name=f"Bao_cao_{name}.pdf",
-        mime="application/pdf",
-        use_container_width=True
-    )
+    # Xuất PDF
+    try:
+        pdf_data = create_pdf(name, score, status, bmi, tips)
+        st.download_button(
+            "📥 Tải Báo Cáo PDF",
+            data=bytes(pdf_data),
+            file_name=f"Health_Report_{name}.pdf",
+            mime="application/pdf"
+        )
+    except Exception as e:
+        st.error(f"Lỗi tạo PDF: {e}")
